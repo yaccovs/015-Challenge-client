@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        table,
+        td,
+        th {
+            border: 1px solid black;
+            padding: 2px;
+        }
+
+        .cols {
+            background-color: blue;
+            width: 30px;
+            margin-left: auto;
+            margin-right: auto;
+            min-height: 2px;
+        }
+
+        .container {
+            display: flex;
+            margin: 20px;
+        }
+
+        .flex {
+            flex: 1;
+            align-self: flex-end;
+            text-align: center;
+        }
+
+        .title-col {
+            height: 4em;
+            font-size: small;
+        }
+        .error {
+            color: red;
+        }
+    </style>
+    <title>Client Salary</title>
+</head>
+
+<body>
+    <script src="lib/vue3.global.js"></script>
+
+    <div id="app">
+        <div>
+            <input @input="errorEdit=''" type="text" placeholder="name" v-model="nameInput">
+            <input @input="errorEdit=''" type="text" placeholder="job" v-model="jobInput">
+            <input @input="errorEdit=''" type="text" placeholder="salary" v-model="salaryInput">
+            <button @click="workerEdit('PUT')">Add/Edit</button>
+            <button @click="workerEdit('DELETE')">Delete</button>
+            <span class="error">{{errorEdit}}</span>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Job</th>
+                    <th>Average salary</th>
+                    <th>Person name with the highest salary in this job</th>
+                </tr>
+            </thead>
+            <tr v-for="row in tableSalaryRows">
+                <td>{{row.job}}</td>
+                <td>{{parseInt(row.salaryAvg)}}</td>
+                <td>{{row.highSalary}}</td>
+            </tr>
+        </table>
+        <div>
+            <div class="container">
+                <div class="flex" v-for="col in chartPopularityCols">
+                    {{col.popularity}}
+                    <!-- <div v-for="i in col.popularity" :key="i" class="cols"></div> -->
+                    <div class="cols" :style="{height: (col.popularity/maxPopularity)*150+'px'}"></div>
+                    <div class="title-col">{{col.job}}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue
+
+        createApp({
+            data() {
+                return {
+                    PATH: 'http://localhost:8000/jobs',
+                    tableSalaryRows: [],
+                    chartPopularityCols: [],
+                    maxPopularity: 0,
+                    nameInput: '',
+                    jobInput: '',
+                    salaryInput: '',
+                    errorEdit: '',
+                }
+            },
+            methods: {
+                fillTableSalary() {
+                    fetch(`${this.PATH}/salary/average`)
+                        .then((response) => response.json())
+                        .then((data) => {
+                            data.map((row) => {
+                                fetch(`${this.PATH}/salary/high?job=${row.job}`)
+                                    .then((response) => response.json())
+                                    .then((data) => {
+                                        row.highSalary = data.name;
+                                        this.tableSalaryRows.push(row);
+                                    });
+                            });
+                        });
+                },
+                async getPopularity() {
+                    fetch(`${this.PATH}/popularity`)
+                        .then((response) => response.json())
+                        .then((data) => {
+                            console.log(123, data);
+                            const keys = Object.keys(data);
+                            const arrayToReturn = [];
+
+                            data.forEach((job) => {
+                                popularity = job.popularity;
+                                if (popularity > this.maxPopularity) {
+                                    this.maxPopularity = popularity;
+                                    console.log(this.maxPopularity);
+                                }
+                                arrayToReturn.push({ job: job.job, popularity })
+                            });
+                            this.chartPopularityCols.push(...arrayToReturn);
+                        });
+                },
+                async workerEdit(ACTION = 'PUT') {
+                    this.tableSalaryRows = [];
+                    this.chartPopularityCols = [];
+                    this.maxPopularity = 0;
+                    this.errorEdit='';
+
+                    const body = JSON.stringify({
+                        name: this.nameInput,
+                        job: this.jobInput,
+                        salary: this.salaryInput,
+                    });
+
+                    fetch(`${this.PATH}/worker`, {
+                        method: ACTION,
+                        body
+                    }).then((response) => {
+                        this.fillTableSalary();
+                        this.getPopularity();
+                        console.log();
+                        console.log(response.status);
+                        return response.json()
+                    }).then((json) => {
+                        if (json.error) {
+                            this.errorEdit = json.error;
+                        }
+                    });
+                }
+            },
+            mounted() {
+                this.fillTableSalary();
+                this.getPopularity();
+            }
+        }).mount('#app')
+    </script>
+</body>
+
+</html>
